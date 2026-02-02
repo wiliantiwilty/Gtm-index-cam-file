@@ -2,16 +2,17 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Simple Image Recognition</title>
+<title>Image Recognition</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+<!-- FIXED CDN (WAJIB) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
 
 <style>
 body { font-family: Arial; text-align: center; background: #f4f4f4; padding: 20px; }
-.box { background: white; padding: 15px; max-width: 360px; margin: auto; border-radius: 8px; }
+.box { background: #fff; padding: 15px; max-width: 360px; margin: auto; border-radius: 8px; }
 button, input { margin: 5px; }
-img, canvas { width: 100%; margin-top: 10px; border-radius: 6px; }
+canvas, img { width: 100%; margin-top: 10px; border-radius: 6px; }
 </style>
 </head>
 
@@ -20,35 +21,41 @@ img, canvas { width: 100%; margin-top: 10px; border-radius: 6px; }
 <div class="box">
     <h3>Image Recognition</h3>
 
-    <button onclick="startCamera()">📷 Kamera</button>
-    <input type="file" accept="image/*" onchange="uploadImage(event)">
+    <button id="camBtn" disabled>📷 Kamera</button>
+    <input type="file" accept="image/*" id="fileInput">
 
     <div id="view"></div>
     <div id="result"></div>
 </div>
 
 <script>
-const MODEL_URL = "https://teachablemachine.withgoogle.com/models/NWKfrLufm/";
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ABC123XYZ/";
 
-let model, webcam, loopId;
+let model, webcam, rafId;
 
-// Load model sekali
+// LOAD MODEL SETELAH LIBRARY SIAP
 async function loadModel() {
+    if (typeof tmImage === "undefined") {
+        alert("Library tmImage gagal dimuat");
+        return;
+    }
+
     model = await tmImage.load(
         MODEL_URL + "model.json",
         MODEL_URL + "metadata.json"
     );
+
+    document.getElementById("camBtn").disabled = false;
 }
 loadModel();
 
-// MODE KAMERA
-async function startCamera() {
+// CAMERA MODE
+document.getElementById("camBtn").onclick = async () => {
     stopAll();
 
     try {
-        webcam = new tmImage.Webcam(300, 300, true);
-
-        await webcam.setup();   // INI titik paling sering gagal
+        webcam = new tmImage.Webcam(224, 224, false);
+        await webcam.setup();
         await webcam.play();
 
         const view = document.getElementById("view");
@@ -56,48 +63,45 @@ async function startCamera() {
         view.appendChild(webcam.canvas);
 
         loop();
-    } catch (err) {
-        alert("Kamera tidak bisa dibuka.\n\n" + err.message);
-        console.error(err);
+    } catch (e) {
+        alert("Kamera tidak bisa dibuka");
+        console.error(e);
     }
-}
+};
 
 async function loop() {
     webcam.update();
     await predict(webcam.canvas);
-    loopId = requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(loop);
 }
 
-// MODE UPLOAD GAMBAR
-function uploadImage(event) {
+// UPLOAD MODE
+document.getElementById("fileInput").onchange = e => {
     stopAll();
 
     const img = document.createElement("img");
-    img.src = URL.createObjectURL(event.target.files[0]);
+    img.src = URL.createObjectURL(e.target.files[0]);
 
-    document.getElementById("view").innerHTML = "";
-    document.getElementById("view").appendChild(img);
+    const view = document.getElementById("view");
+    view.innerHTML = "";
+    view.appendChild(img);
 
-    img.onload = async () => {
-        await predict(img);
-    };
-}
+    img.onload = () => predict(img);
+};
 
-// PREDIKSI (SATU HASIL TERBESAR)
-async function predict(source) {
-    const predictions = await model.predict(source);
-    const best = predictions.reduce((a, b) =>
-        a.probability > b.probability ? a : b
-    );
+// PREDICT
+async function predict(src) {
+    const preds = await model.predict(src);
+    const best = preds.reduce((a,b)=>a.probability>b.probability?a:b);
 
     document.getElementById("result").innerHTML =
-        `<b>${best.className}</b> (${(best.probability * 100).toFixed(2)}%)`;
+        `<b>${best.className}</b> (${(best.probability*100).toFixed(2)}%)`;
 }
 
-// STOP SEMUA MODE
+// STOP
 function stopAll() {
     if (webcam) webcam.stop();
-    cancelAnimationFrame(loopId);
+    cancelAnimationFrame(rafId);
     document.getElementById("result").innerHTML = "";
 }
 </script>
