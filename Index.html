@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Simple Image Recognition</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
+
+<style>
+body { font-family: Arial; text-align: center; background: #f4f4f4; padding: 20px; }
+.box { background: white; padding: 15px; max-width: 360px; margin: auto; border-radius: 8px; }
+button, input { margin: 5px; }
+img, canvas { width: 100%; margin-top: 10px; border-radius: 6px; }
+</style>
+</head>
+
+<body>
+
+<div class="box">
+    <h3>Image Recognition</h3>
+
+    <button onclick="startCamera()">📷 Kamera</button>
+    <input type="file" accept="image/*" onchange="uploadImage(event)">
+
+    <div id="view"></div>
+    <div id="result"></div>
+</div>
+
+<script>
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ABC123XYZ/";
+
+let model, webcam, loopId;
+
+// Load model sekali
+async function loadModel() {
+    model = await tmImage.load(
+        MODEL_URL + "model.json",
+        MODEL_URL + "metadata.json"
+    );
+}
+loadModel();
+
+// MODE KAMERA
+async function startCamera() {
+    stopAll();
+
+    try {
+        webcam = new tmImage.Webcam(300, 300, true);
+
+        await webcam.setup();   // INI titik paling sering gagal
+        await webcam.play();
+
+        const view = document.getElementById("view");
+        view.innerHTML = "";
+        view.appendChild(webcam.canvas);
+
+        loop();
+    } catch (err) {
+        alert("Kamera tidak bisa dibuka.\n\n" + err.message);
+        console.error(err);
+    }
+}
+
+async function loop() {
+    webcam.update();
+    await predict(webcam.canvas);
+    loopId = requestAnimationFrame(loop);
+}
+
+// MODE UPLOAD GAMBAR
+function uploadImage(event) {
+    stopAll();
+
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(event.target.files[0]);
+
+    document.getElementById("view").innerHTML = "";
+    document.getElementById("view").appendChild(img);
+
+    img.onload = async () => {
+        await predict(img);
+    };
+}
+
+// PREDIKSI (SATU HASIL TERBESAR)
+async function predict(source) {
+    const predictions = await model.predict(source);
+    const best = predictions.reduce((a, b) =>
+        a.probability > b.probability ? a : b
+    );
+
+    document.getElementById("result").innerHTML =
+        `<b>${best.className}</b> (${(best.probability * 100).toFixed(2)}%)`;
+}
+
+// STOP SEMUA MODE
+function stopAll() {
+    if (webcam) webcam.stop();
+    cancelAnimationFrame(loopId);
+    document.getElementById("result").innerHTML = "";
+}
+</script>
+
+</body>
+</html>
