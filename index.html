@@ -4,58 +4,72 @@
 <meta charset="UTF-8">
 <title>Image Recognition</title>
 
-<!-- FIXED CDN (WAJIB) -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.12.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.4/dist/teachablemachine-image.min.js"></script>
+<!-- TensorFlow & Teachable Machine -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest"></script>
 
 <style>
-body { font-family: Arial; text-align: center; background: #f4f4f4; padding: 20px; }
-.box { background: #fff; padding: 15px; max-width: 360px; margin: auto; border-radius: 8px; }
-button, input { margin: 5px; }
-canvas, img { width: 100%; margin-top: 10px; border-radius: 6px; }
+body {
+    font-family: Arial, sans-serif;
+    background: #f3f3f3;
+    text-align: center;
+}
+.card {
+    background: white;
+    padding: 20px;
+    margin: 50px auto;
+    width: 320px;
+    border-radius: 10px;
+}
+button {
+    padding: 10px 15px;
+    margin: 5px;
+    cursor: pointer;
+}
+#view canvas, #view img {
+    margin-top: 10px;
+    max-width: 100%;
+}
 </style>
 </head>
 
 <body>
 
-<div class="box">
-    <h3>Image Recognition</h3>
+<div class="card">
+    <h2>Image Recognition</h2>
 
-    <button id="camBtn" disabled>📷 Kamera</button>
-    <input type="file" accept="image/*" id="fileInput">
+    <button onclick="openCamera()">📷 Kamera</button><br>
+
+    <input type="file" accept="image/*" onchange="loadImage(event)">
 
     <div id="view"></div>
     <div id="result"></div>
 </div>
 
 <script>
-const MODEL_URL = "https://teachablemachine.withgoogle.com/models/NWKfrLufm/";
+const MODEL_URL = "https://teachablemachine.withgoogle.com/models/XXXXXXX/";
 
-let model, webcam, rafId;
+let model, webcam;
 
-// LOAD MODEL SETELAH LIBRARY SIAP
 async function loadModel() {
-    if (typeof tmImage === "undefined") {
-        alert("Library tmImage gagal dimuat");
-        return;
-    }
-
     model = await tmImage.load(
         MODEL_URL + "model.json",
         MODEL_URL + "metadata.json"
     );
-
-    document.getElementById("camBtn").disabled = false;
 }
 loadModel();
 
-// CAMERA MODE
-document.getElementById("camBtn").onclick = async () => {
+function stopAll() {
+    if (webcam) webcam.stop();
+}
+
+async function openCamera() {
     stopAll();
+    document.getElementById("result").innerHTML = "";
 
     try {
-        webcam = new tmImage.Webcam(224, 224, false);
-        await webcam.setup();
+        webcam = new tmImage.Webcam(200, 200);
+        await webcam.setup();   // ← harus dari klik
         await webcam.play();
 
         const view = document.getElementById("view");
@@ -64,45 +78,40 @@ document.getElementById("camBtn").onclick = async () => {
 
         loop();
     } catch (e) {
-        alert("Kamera tidak bisa dibuka");
+        alert("Kamera tidak bisa dibuka. Pastikan izin kamera di browser.");
         console.error(e);
     }
-};
+}
 
 async function loop() {
     webcam.update();
     await predict(webcam.canvas);
-    rafId = requestAnimationFrame(loop);
+    requestAnimationFrame(loop);
 }
 
-// UPLOAD MODE
-document.getElementById("fileInput").onchange = e => {
+async function loadImage(event) {
     stopAll();
 
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(e.target.files[0]);
+    const img = new Image();
+    img.src = URL.createObjectURL(event.target.files[0]);
 
-    const view = document.getElementById("view");
-    view.innerHTML = "";
-    view.appendChild(img);
-
-    img.onload = () => predict(img);
-};
-
-// PREDICT
-async function predict(src) {
-    const preds = await model.predict(src);
-    const best = preds.reduce((a,b)=>a.probability>b.probability?a:b);
-
-    document.getElementById("result").innerHTML =
-        `<b>${best.className}</b> (${(best.probability*100).toFixed(2)}%)`;
+    img.onload = async () => {
+        const view = document.getElementById("view");
+        view.innerHTML = "";
+        view.appendChild(img);
+        await predict(img);
+    };
 }
 
-// STOP
-function stopAll() {
-    if (webcam) webcam.stop();
-    cancelAnimationFrame(rafId);
-    document.getElementById("result").innerHTML = "";
+async function predict(input) {
+    const prediction = await model.predict(input);
+    let text = "";
+
+    prediction.forEach(p => {
+        text += `${p.className}: ${(p.probability * 100).toFixed(2)}%<br>`;
+    });
+
+    document.getElementById("result").innerHTML = text;
 }
 </script>
 
